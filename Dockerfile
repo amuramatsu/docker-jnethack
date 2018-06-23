@@ -36,7 +36,6 @@ RUN apk --update add --no-cache --virtual .build-dep \
 	&& sh sys/unix/setup.sh ../linux-tty-x11 \
 	&& make \
 	&& make install \
-	&& cp sys/unix/sysconf /usr/local/games/lib/jnethackdir \
 	&& cd .. && rm -rf nethack-3.6.1 \
 	&& apk del --prune .build-dep
 
