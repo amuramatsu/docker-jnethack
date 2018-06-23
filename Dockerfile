@@ -3,7 +3,7 @@ FROM alpine:latest
 MAINTAINER MURAMATSU Atsushi <amura@tomato.sakura.ne.jp>
 
 WORKDIR /nethack
-COPY jnethack-3.6.0-0.7-utf8.patch linux-tty-x11 jnethack.conf ./
+COPY jnethack-3.6.1-0.1.patch linux-tty-x11 jnethack.conf ./
 RUN apk --update add --no-cache \
 		ncurses-libs \
 		libx11 \
@@ -25,18 +25,19 @@ RUN apk --update add --no-cache --virtual .build-dep \
 		&& ./configure --prefix=/usr/local && make && make install \
 	&& cd .. && rm -rf libiconv-1.15 \
 	&& curl -sL https://ja.osdn.net/projects/nkf/downloads/64158/nkf-2.1.4.tar.gz | tar zxf - \
-	&& curl -sL https://sourceforge.net/projects/nethack/files/nethack/3.6.0/nethack-360-src.tgz | tar zxf - \
+	&& curl -sL https://sourceforge.net/projects/nethack/files/nethack/3.6.1/nethack-361-src.tgz | tar zxf - \
 	&& cd nkf-2.1.4 && make && cd .. \
 	&& nkf-2.1.4/nkf -W -e -Lu --overwrite jnethack.conf \
-	&& cd nethack-3.6.0 \
-	&& curl -sL https://ja.osdn.net/projects/jnethack/downloads/67126/jnethack-3.6.0-0.8.diff.gz | zcat | patch -p2 \
+	&& cd nethack-3.6.1 \
+	&& curl -sL https://ja.osdn.net/projects/jnethack/downloads/69713/jnethack-3.6.1-0.1.diff.gz | zcat | patch -p2 \
 	&& find . -type f -exec ../nkf-2.1.4/nkf -e -Lu --overwrite {} \; \
 	&& rm -rf ../nkf-2.1.4 \
-	&& patch -p1 < ../jnethack-3.6.0-0.7-utf8.patch \
+	&& patch -p1 < ../jnethack-3.6.1-0.1.patch \
 	&& sh sys/unix/setup.sh ../linux-tty-x11 \
 	&& make \
 	&& make install \
-	&& cd .. && rm -rf nethack-3.6.0 \
+	&& cp sys/unix/sysconf /usr/local/games/lib/jnethackdir \
+	&& cd .. && rm -rf nethack-3.6.1 \
 	&& apk del --prune .build-dep
 
 # make save dir && sysconf

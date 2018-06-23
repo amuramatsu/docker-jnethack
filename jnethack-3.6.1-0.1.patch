@@ -1,0 +1,251 @@
+diff -ruN nethack-3.6.1.orig/include/extern.h nethack-3.6.1/include/extern.h
+--- nethack-3.6.1.orig/include/extern.h	2018-06-24 00:33:23.000000000 +0900
++++ nethack-3.6.1/include/extern.h	2018-06-24 01:37:56.880740744 +0900
+@@ -2908,12 +2908,12 @@
+ E unsigned char *FDECL(e2sj, (unsigned char *));
+ E unsigned char *FDECL(sj2e, (unsigned char *));
+ E const char *FDECL(str2ic, (const char *));
+-#ifdef SJIS_FILESYSTEM
+ E const char *FDECL(ic2str, (const char *));
+-#endif
++E const char *FDECL(gc2str, (const char *));
+ E int FDECL(jbuffer, (unsigned int, unsigned int *, void (*)(unsigned int), void (*)(unsigned int, unsigned int)));
+ E int FDECL(cbuffer, (unsigned int, unsigned int *, void (*)(unsigned int), void (*)(unsigned int, unsigned int)));
+ E void FDECL(cputchar,(int));
++E void FDECL(gputchar,(int));
+ E void FDECL(jputchar,(int));
+ E void FDECL(jputs,(const char *));
+ E int FDECL(is_kanji2, (const char *,int));
+diff -ruN nethack-3.6.1.orig/japanese/jlib.c nethack-3.6.1/japanese/jlib.c
+--- nethack-3.6.1.orig/japanese/jlib.c	2018-06-24 00:33:23.000000000 +0900
++++ nethack-3.6.1/japanese/jlib.c	2018-06-24 01:35:17.722376033 +0900
+@@ -281,6 +281,99 @@
+     return (char *)buf;
+ }
+ 
++/* CP437 to Unicode mapping according to the Unicode Consortium */
++static ushort cp437[] =
++{
++        0x0020, 0x263A, 0x263B, 0x2665, 0x2666, 0x2663, 0x2660, 0x2022,
++        0x25D8, 0x25CB, 0x25D9, 0x2642, 0x2640, 0x266A, 0x266B, 0x263C,
++        0x25BA, 0x25C4, 0x2195, 0x203C, 0x00B6, 0x00A7, 0x25AC, 0x21A8,
++        0x2191, 0x2193, 0x2192, 0x2190, 0x221F, 0x2194, 0x25B2, 0x25BC,
++        0x0020, 0x0021, 0x0022, 0x0023, 0x0024, 0x0025, 0x0026, 0x0027,
++        0x0028, 0x0029, 0x002a, 0x002b, 0x002c, 0x002d, 0x002e, 0x002f,
++        0x0030, 0x0031, 0x0032, 0x0033, 0x0034, 0x0035, 0x0036, 0x0037,
++        0x0038, 0x0039, 0x003a, 0x003b, 0x003c, 0x003d, 0x003e, 0x003f,
++        0x0040, 0x0041, 0x0042, 0x0043, 0x0044, 0x0045, 0x0046, 0x0047,
++        0x0048, 0x0049, 0x004a, 0x004b, 0x004c, 0x004d, 0x004e, 0x004f,
++        0x0050, 0x0051, 0x0052, 0x0053, 0x0054, 0x0055, 0x0056, 0x0057,
++        0x0058, 0x0059, 0x005a, 0x005b, 0x005c, 0x005d, 0x005e, 0x005f,
++        0x0060, 0x0061, 0x0062, 0x0063, 0x0064, 0x0065, 0x0066, 0x0067,
++        0x0068, 0x0069, 0x006a, 0x006b, 0x006c, 0x006d, 0x006e, 0x006f,
++        0x0070, 0x0071, 0x0072, 0x0073, 0x0074, 0x0075, 0x0076, 0x0077,
++        0x0078, 0x0079, 0x007a, 0x007b, 0x007c, 0x007d, 0x007e, 0x2302,
++        0x00c7, 0x00fc, 0x00e9, 0x00e2, 0x00e4, 0x00e0, 0x00e5, 0x00e7,
++        0x00ea, 0x00eb, 0x00e8, 0x00ef, 0x00ee, 0x00ec, 0x00c4, 0x00c5,
++        0x00c9, 0x00e6, 0x00c6, 0x00f4, 0x00f6, 0x00f2, 0x00fb, 0x00f9,
++        0x00ff, 0x00d6, 0x00dc, 0x00a2, 0x00a3, 0x00a5, 0x20a7, 0x0192,
++        0x00e1, 0x00ed, 0x00f3, 0x00fa, 0x00f1, 0x00d1, 0x00aa, 0x00ba,
++        0x00bf, 0x2310, 0x00ac, 0x00bd, 0x00bc, 0x00a1, 0x00ab, 0x00bb,
++        0x2591, 0x2592, 0x2593, 0x2502, 0x2524, 0x2561, 0x2562, 0x2556,
++        0x2555, 0x2563, 0x2551, 0x2557, 0x255d, 0x255c, 0x255b, 0x2510,
++        0x2514, 0x2534, 0x252c, 0x251c, 0x2500, 0x253c, 0x255e, 0x255f,
++        0x255a, 0x2554, 0x2569, 0x2566, 0x2560, 0x2550, 0x256c, 0x2567,
++        0x2568, 0x2564, 0x2565, 0x2559, 0x2558, 0x2552, 0x2553, 0x256b,
++        0x256a, 0x2518, 0x250c, 0x2588, 0x2584, 0x258c, 0x2590, 0x2580,
++        0x03b1, 0x00df, 0x0393, 0x03c0, 0x03a3, 0x03c3, 0x00b5, 0x03c4,
++        0x03a6, 0x0398, 0x03a9, 0x03b4, 0x221e, 0x03c6, 0x03b5, 0x2229,
++        0x2261, 0x00b1, 0x2265, 0x2264, 0x2320, 0x2321, 0x00f7, 0x2248,
++        0x00b0, 0x2219, 0x00b7, 0x221a, 0x207f, 0x00b2, 0x25a0, 0x00a0
++};
++
++static char *
++glyph_to_utf8str(int c, char *buf)
++{
++    ushort code;
++
++    /* Convert selected code to UTF-8 */
++    if (SYMHANDLING(H_IBM))
++        code = cp437[c & 0xff];
++    else
++        code = c & 0xff; /* iso8859-1 charactor */
++
++    /* iconv cannot convert controll chars, they are converted hear */
++    if (code < 0x80) {
++        *(buf++) = (char)code;
++    } else if (code < 0x0800) {
++        *(buf++) = (char)(0xC0 | ((code>> 6) & 0x1F));
++        *(buf++) = (char)(0x80 | ( code      & 0x3F));
++    } else {
++        *(buf++) = (char)(0xE0 | ((code>>12) & 0x1F));
++        *(buf++) = (char)(0x80 | ((code>> 6) & 0x3F));
++        *(buf++) = (char)(0x80 | ( code      & 0x3F));
++    }
++    *buf = '\0';
++    return buf;
++}
++
++/*
++** translate glyph code (cp437) string to output kcode
++*/
++const char *
++gc2str(const char *s)
++{
++    static unsigned char buf[1024];
++    const unsigned char *up;
++    unsigned char *p;
++
++    if(!s)
++      return s;
++
++    up = s;
++    p = buf;
++    if(output_kcode==UTF8){
++        while(*up){
++            p = glyph_to_utf8str(*(up++), p);
++        }
++    }
++    else{
++notsupport:
++        strcpy((char *)buf, s);
++        return (char *)buf;
++    }
++
++    *(p++) = '\0';
++    return (char *)buf;
++}
++
+ /*
+ **	primitive function
+ */
+@@ -474,6 +567,21 @@
+     cbuffer((unsigned int)(c & 0xff), NULL, NULL, NULL);
+ }
+ 
++/* print out glyph (cp437) character to tty */
++void
++gputchar(int c)
++{
++    char buf[6];
++    char *str = buf;
++
++    if (output_kcode == UTF8) {
++        glyph_to_utf8str(c, buf);
++        while(*str) tty_cputc(*(str++));
++    } else {
++        tty_cputc((unsigned int)(c&0xFF));
++    }
++}
++
+ void
+ jputs(s)
+      const char *s;
+diff -ruN nethack-3.6.1.orig/sys/unix/unixmain.c nethack-3.6.1/sys/unix/unixmain.c
+--- nethack-3.6.1.orig/sys/unix/unixmain.c	2018-06-24 00:33:24.000000000 +0900
++++ nethack-3.6.1/sys/unix/unixmain.c	2018-06-24 00:39:25.655418411 +0900
+@@ -18,6 +18,8 @@
+ 
+ #ifdef XI18N
+ #include <X11/Xlocale.h>
++#else
++#include <locale.h>
+ #endif
+ 
+ #if !defined(_BULL_SOURCE) && !defined(__sgi) && !defined(_M_UNIX)
+@@ -64,7 +66,15 @@
+ 
+     sys_early_init();
+ 
+-#ifdef XI18N
++#if 1 /*JP*/
++    {
++        char *locale, *dot;
++        locale = setlocale(LC_ALL, "");
++        dot = strchr(locale, '.');
++        if (dot) setkcode(*(dot+1));
++        setlocale(LC_ALL, "ja_JP.eucJP");
++    }
++#elif defined(XI18N)
+     setlocale(LC_ALL, "");
+ #endif
+ #if defined(__APPLE__)
+@@ -103,7 +113,7 @@
+     hackpid = getpid();
+     (void) umask(0777 & ~FCMASK);
+ 
+-    choose_windows(DEFAULT_WINDOW_SYS);
++    choose_windows(getenv("DISPLAY") ? DEFAULT_WINDOW_SYS : "tty");
+ 
+ #ifdef CHDIR /* otherwise no chdir() */
+     /*
+@@ -162,7 +172,6 @@
+ #if 0 /*JP*/
+             prscore(argc, argv);
+ #else
+-            setkcode('I');
+             initoptions();
+             prscore(argc, argv);
+             jputchar('\0'); /* reset */
+diff -ruN nethack-3.6.1.orig/win/X11/winX.c nethack-3.6.1/win/X11/winX.c
+--- nethack-3.6.1.orig/win/X11/winX.c	2018-06-24 00:33:24.000000000 +0900
++++ nethack-3.6.1/win/X11/winX.c	2018-06-24 00:42:17.424082305 +0900
+@@ -170,6 +170,9 @@
+ static int FDECL(input_event, (int));
+ static void FDECL(win_visible, (Widget, XtPointer, XEvent *, Boolean *));
+ static void NDECL(init_standard_windows);
++#ifdef XI18N
++static String FDECL(lang_proc, (Display *,String, XtPointer));
++#endif
+ 
+ #ifdef  INSTALLCOLORMAP
+ Colormap     cmap;
+@@ -1285,7 +1288,7 @@
+     XSetIOErrorHandler((XIOErrorHandler) hangup);
+ 
+ #ifdef XI18N
+-    XtSetLanguageProc(NULL, NULL, NULL);
++    XtSetLanguageProc(NULL, lang_proc, NULL);
+ #endif
+ #if 1 /*JP*/
+     XSetIOErrorHandler((XIOErrorHandler) hangup);
+@@ -2659,4 +2662,18 @@
+     }
+ }
+ 
++#ifdef XI18N
++static String lang_proc (Display *did, String lid, XtPointer cdata)
++{
++    if (! XSupportsLocale()) {
++       XtWarning("Current locale is not supported\n");
++       setlocale(LC_ALL, "C");
++    }
++    if (XSetLocaleModifiers("") == NULL) {
++       XtWarning("Can't set locale modifiers\n");
++    }
++    return setlocale(LC_ALL, NULL);
++}
++#endif
++
+ /*winX.c*/
+diff -ruN nethack-3.6.1.orig/win/tty/wintty.c nethack-3.6.1/win/tty/wintty.c
+--- nethack-3.6.1.orig/win/tty/wintty.c	2018-06-24 00:33:24.000000000 +0900
++++ nethack-3.6.1/win/tty/wintty.c	2018-06-24 00:45:37.391311107 +0900
+@@ -3372,7 +3372,7 @@
+ #   if 0 /*JP*/
+         (void) putchar(ch);
+ #   else
+-	(void) cputchar(ch);
++	(void) gputchar(ch);
+ #   endif
+     } else if (ch & 0x80) {
+         if (!GFlag || HE_resets_AS) {
+@@ -3392,7 +3392,7 @@
+ # if 0 /*JP*/
+         (void) putchar(ch);
+ # else
+-	(void) jputchar(ch);
++	(void) cputchar(ch);
+ # endif
+     }
+ 
