@@ -1,6 +1,6 @@
 diff -ruN nethack-3.6.1.orig/include/extern.h nethack-3.6.1/include/extern.h
---- nethack-3.6.1.orig/include/extern.h	2018-06-24 00:33:23.000000000 +0900
-+++ nethack-3.6.1/include/extern.h	2018-06-24 01:37:56.880740744 +0900
+--- nethack-3.6.1.orig/include/extern.h	2018-06-24 11:53:06.000000000 +0900
++++ nethack-3.6.1/include/extern.h	2018-06-24 12:39:49.729980284 +0900
 @@ -2908,12 +2908,12 @@
  E unsigned char *FDECL(e2sj, (unsigned char *));
  E unsigned char *FDECL(sj2e, (unsigned char *));
@@ -17,8 +17,69 @@ diff -ruN nethack-3.6.1.orig/include/extern.h nethack-3.6.1/include/extern.h
  E void FDECL(jputs,(const char *));
  E int FDECL(is_kanji2, (const char *,int));
 diff -ruN nethack-3.6.1.orig/japanese/jlib.c nethack-3.6.1/japanese/jlib.c
---- nethack-3.6.1.orig/japanese/jlib.c	2018-06-24 00:33:23.000000000 +0900
-+++ nethack-3.6.1/japanese/jlib.c	2018-06-24 01:35:17.722376033 +0900
+--- nethack-3.6.1.orig/japanese/jlib.c	2018-06-24 11:53:06.000000000 +0900
++++ nethack-3.6.1/japanese/jlib.c	2018-06-24 12:43:04.825039761 +0900
+@@ -65,8 +65,8 @@
+ static int	output_kcode = OUTPUT_KCODE;
+ static int	input_kcode = INPUT_KCODE;
+ #ifdef POSIX_ICONV
+-static iconv_t	output_dsc = 0;
+-static iconv_t	input_dsc = 0;
++static iconv_t	output_dsc = (iconv_t)-1;
++static iconv_t	input_dsc = (iconv_t)-1;
+ #endif
+ 
+ /*
+@@ -109,23 +109,23 @@
+     input_kcode = output_kcode;
+ 
+ #ifdef POSIX_ICONV
+-    if (output_dsc)
++    if (output_dsc != (iconv_t)-1)
+         iconv_close(output_dsc);
+     output_dsc = iconv_open(ccode[output_kcode], ccode[IC]);
+-    if ((size_t)output_dsc == -1)
++    if (output_dsc == (iconv_t)-1)
+         output_dsc = iconv_open(ccode_alt[output_kcode], ccode[IC]);
+-    if ((size_t)output_dsc == -1)
++    if (output_dsc == (iconv_t)-1)
+         output_dsc = iconv_open(ccode[output_kcode], ccode_alt[IC]);
+-    if ((size_t)output_dsc == -1)
++    if (output_dsc == (iconv_t)-1)
+         output_dsc = iconv_open(ccode_alt[output_kcode], ccode_alt[IC]);
+-    if(input_dsc)
++    if(input_dsc != (iconv_t)-1)
+         iconv_close(input_dsc);
+     input_dsc = iconv_open(ccode[IC] ,ccode[input_kcode]);
+-    if ((size_t)input_dsc == -1)
++    if (input_dsc == (iconv_t)-1)
+         input_dsc = iconv_open(ccode_alt[IC] ,ccode[input_kcode]);
+-    if ((size_t)input_dsc == -1)
++    if (input_dsc == (iconv_t)-1)
+         input_dsc = iconv_open(ccode[IC] ,ccode_alt[input_kcode]);
+-    if ((size_t)input_dsc == -1)
++    if (input_dsc == (iconv_t)-1)
+         input_dsc = iconv_open(ccode_alt[IC] ,ccode_alt[input_kcode]);
+ #endif
+ }
+@@ -195,7 +195,7 @@
+ 
+     p = buf;
+ #ifdef POSIX_ICONV
+-    if (input_dsc) {
++    if (input_dsc != (iconv_t)-1) {
+         size_t src_len, dst_len;
+         up = s;
+         src_len = strlen(s);
+@@ -247,7 +247,7 @@
+ 
+     p = buf;
+ #ifdef POSIX_ICONV
+-    if(output_dsc){
++    if(output_dsc != (iconv_t)-1){
+         size_t src_len, dst_len;
+         up = s;
+         src_len = strlen(s);
 @@ -281,6 +281,99 @@
      return (char *)buf;
  }
@@ -119,6 +180,15 @@ diff -ruN nethack-3.6.1.orig/japanese/jlib.c nethack-3.6.1/japanese/jlib.c
  /*
  **	primitive function
  */
+@@ -365,7 +458,7 @@
+ 	if(IC == output_kcode)
+ #ifdef POSIX_ICONV
+             f2(c1, c2);
+-        else if (output_dsc) {
++        else if (output_dsc != (iconv_t)-1) {
+             char buf_in[2], buf_out[16];
+             char *src = buf_in, *dst=buf_out;
+             size_t src_len = 2, dst_len = sizeof(buf_out);
 @@ -474,6 +567,21 @@
      cbuffer((unsigned int)(c & 0xff), NULL, NULL, NULL);
  }
@@ -142,8 +212,8 @@ diff -ruN nethack-3.6.1.orig/japanese/jlib.c nethack-3.6.1/japanese/jlib.c
  jputs(s)
       const char *s;
 diff -ruN nethack-3.6.1.orig/sys/unix/unixmain.c nethack-3.6.1/sys/unix/unixmain.c
---- nethack-3.6.1.orig/sys/unix/unixmain.c	2018-06-24 00:33:24.000000000 +0900
-+++ nethack-3.6.1/sys/unix/unixmain.c	2018-06-24 00:39:25.655418411 +0900
+--- nethack-3.6.1.orig/sys/unix/unixmain.c	2018-06-24 11:53:07.000000000 +0900
++++ nethack-3.6.1/sys/unix/unixmain.c	2018-06-24 12:39:49.738017797 +0900
 @@ -18,6 +18,8 @@
  
  #ifdef XI18N
@@ -188,8 +258,8 @@ diff -ruN nethack-3.6.1.orig/sys/unix/unixmain.c nethack-3.6.1/sys/unix/unixmain
              prscore(argc, argv);
              jputchar('\0'); /* reset */
 diff -ruN nethack-3.6.1.orig/win/X11/winX.c nethack-3.6.1/win/X11/winX.c
---- nethack-3.6.1.orig/win/X11/winX.c	2018-06-24 00:33:24.000000000 +0900
-+++ nethack-3.6.1/win/X11/winX.c	2018-06-24 00:42:17.424082305 +0900
+--- nethack-3.6.1.orig/win/X11/winX.c	2018-06-24 11:53:07.000000000 +0900
++++ nethack-3.6.1/win/X11/winX.c	2018-06-24 12:39:49.750339093 +0900
 @@ -170,6 +170,9 @@
  static int FDECL(input_event, (int));
  static void FDECL(win_visible, (Widget, XtPointer, XEvent *, Boolean *));
@@ -229,8 +299,8 @@ diff -ruN nethack-3.6.1.orig/win/X11/winX.c nethack-3.6.1/win/X11/winX.c
 +
  /*winX.c*/
 diff -ruN nethack-3.6.1.orig/win/tty/wintty.c nethack-3.6.1/win/tty/wintty.c
---- nethack-3.6.1.orig/win/tty/wintty.c	2018-06-24 00:33:24.000000000 +0900
-+++ nethack-3.6.1/win/tty/wintty.c	2018-06-24 00:45:37.391311107 +0900
+--- nethack-3.6.1.orig/win/tty/wintty.c	2018-06-24 11:53:07.000000000 +0900
++++ nethack-3.6.1/win/tty/wintty.c	2018-06-24 12:39:49.757903623 +0900
 @@ -3372,7 +3372,7 @@
  #   if 0 /*JP*/
          (void) putchar(ch);
