@@ -1,6 +1,6 @@
 diff -ruN nethack-3.6.1.orig/include/extern.h nethack-3.6.1/include/extern.h
---- nethack-3.6.1.orig/include/extern.h	2018-06-24 11:53:06.000000000 +0900
-+++ nethack-3.6.1/include/extern.h	2018-06-24 12:39:49.729980284 +0900
+--- nethack-3.6.1.orig/include/extern.h	2018-10-13 07:37:46.000000000 +0900
++++ nethack-3.6.1/include/extern.h	2018-10-13 07:39:19.508054098 +0900
 @@ -2908,12 +2908,12 @@
  E unsigned char *FDECL(e2sj, (unsigned char *));
  E unsigned char *FDECL(sj2e, (unsigned char *));
@@ -17,24 +17,71 @@ diff -ruN nethack-3.6.1.orig/include/extern.h nethack-3.6.1/include/extern.h
  E void FDECL(jputs,(const char *));
  E int FDECL(is_kanji2, (const char *,int));
 diff -ruN nethack-3.6.1.orig/japanese/jlib.c nethack-3.6.1/japanese/jlib.c
---- nethack-3.6.1.orig/japanese/jlib.c	2018-06-24 11:53:06.000000000 +0900
-+++ nethack-3.6.1/japanese/jlib.c	2018-06-24 12:43:04.825039761 +0900
-@@ -65,8 +65,8 @@
+--- nethack-3.6.1.orig/japanese/jlib.c	2018-10-13 07:37:46.000000000 +0900
++++ nethack-3.6.1/japanese/jlib.c	2018-10-13 07:39:38.809306482 +0900
+@@ -10,7 +10,9 @@
+ #include <stdio.h>
+ #include <ctype.h>
+ #include "hack.h"
+-#ifdef POSIX_ICONV
++#if defined(ICU)
++#include <unicode/ucnv.h>
++#elif defined(POSIX_ICONV)
+ #include <iconv.h>
+ #endif
+ 
+@@ -22,7 +24,13 @@
+ #define SJIS	1
+ #define UTF8	2
+ 
+-#ifdef POSIX_ICONV
++#if defined(ICU)
++static char* ccode[]={
++    "euc-jp-2007",
++    "windows-31j",
++    "utf-8"
++};
++#elif defined(POSIX_ICONV)
+ static char* ccode[]={
+     "EUC-JP-MS",
+     "CP932",
+@@ -64,9 +72,13 @@
+ 
  static int	output_kcode = OUTPUT_KCODE;
  static int	input_kcode = INPUT_KCODE;
- #ifdef POSIX_ICONV
+-#ifdef POSIX_ICONV
 -static iconv_t	output_dsc = 0;
 -static iconv_t	input_dsc = 0;
++#if defined(ICU)
++static UConverter *output_dsc;
++static UConverter *input_dsc;
++static UConverter *internal_dsc;
++#elif defined(POSIX_ICONV)
 +static iconv_t	output_dsc = (iconv_t)-1;
 +static iconv_t	input_dsc = (iconv_t)-1;
  #endif
  
  /*
-@@ -109,23 +109,23 @@
+@@ -108,24 +120,37 @@
+     }
      input_kcode = output_kcode;
  
- #ifdef POSIX_ICONV
+-#ifdef POSIX_ICONV
 -    if (output_dsc)
++#if defined(ICU)
++    {
++	UErrorCode status;
++	if (output_dsc)
++	    ucnv_close(output_dsc);
++	output_dsc = ucnv_open(ccode[output_kcode], &status);
++	if (input_dsc)
++	    ucnv_close(input_dsc);
++	input_dsc = ucnv_open(ccode[input_kcode], &status);
++	if (internal_dsc)
++	    ucnv_close(internal_dsc);
++	internal_dsc = ucnv_open(ccode[IC], &status);
++    }
++#elif defined(POSIX_ICONV)
 +    if (output_dsc != (iconv_t)-1)
          iconv_close(output_dsc);
      output_dsc = iconv_open(ccode[output_kcode], ccode[IC]);
@@ -62,30 +109,64 @@ diff -ruN nethack-3.6.1.orig/japanese/jlib.c nethack-3.6.1/japanese/jlib.c
          input_dsc = iconv_open(ccode_alt[IC] ,ccode_alt[input_kcode]);
  #endif
  }
-@@ -195,7 +195,7 @@
+@@ -194,8 +219,23 @@
+     }
  
      p = buf;
- #ifdef POSIX_ICONV
+-#ifdef POSIX_ICONV
 -    if (input_dsc) {
++#if defined(ICU)
++    if (internal_dsc && input_dsc) {
++	UErrorCode status;
++        size_t src_len, dst_len;
++        up = s;
++        src_len = strlen(s);
++        dst_len = sizeof(buf);
++	ucnv_convertEx(internal_dsc, input_dsc,
++		       (char**)&p, p+dst_len,
++		       (char**)&up, up+src_len,
++		       NULL, NULL, NULL, NULL, TRUE, TRUE,
++		       &status);
++	if (status != U_SUCCESS)
++            goto noconvert;
++    }
++#elif defined(POSIX_ICONV)
 +    if (input_dsc != (iconv_t)-1) {
          size_t src_len, dst_len;
          up = s;
          src_len = strlen(s);
-@@ -247,7 +247,7 @@
+@@ -248,8 +288,23 @@
+     buf[0] = '\0';
  
      p = buf;
- #ifdef POSIX_ICONV
+-#ifdef POSIX_ICONV
 -    if(output_dsc){
++#if defined(ICU)
++    if(internal_dsc && output_dsc){
++	UErrorCode status;
++	size_t src_len, dst_len;
++        up = s;
++        src_len = strlen(s);
++        dst_len = sizeof(buf);
++	ucnv_convertEx(output_dsc, internal_dsc,
++		       (char**)&p, p+dst_len,
++		       (char**)&up, up+src_len,
++		       NULL, NULL, NULL, NULL, TRUE, TRUE,
++		       &status);
++	if (status != U_SUCCESS)
++            goto noconvert;
++    }
++#elif defined(POSIX_ICONV)
 +    if(output_dsc != (iconv_t)-1){
          size_t src_len, dst_len;
          up = s;
          src_len = strlen(s);
-@@ -281,6 +281,99 @@
+@@ -285,6 +340,99 @@
      return (char *)buf;
  }
  
 +/* CP437 to Unicode mapping according to the Unicode Consortium */
-+static ushort cp437[] =
++static unsigned short cp437[] =
 +{
 +        0x0020, 0x263A, 0x263B, 0x2665, 0x2666, 0x2663, 0x2660, 0x2022,
 +        0x25D8, 0x25CB, 0x25D9, 0x2642, 0x2640, 0x266A, 0x266B, 0x263C,
@@ -124,7 +205,7 @@ diff -ruN nethack-3.6.1.orig/japanese/jlib.c nethack-3.6.1/japanese/jlib.c
 +static char *
 +glyph_to_utf8str(int c, char *buf)
 +{
-+    ushort code;
++    unsigned short code;
 +
 +    /* Convert selected code to UTF-8 */
 +    if (SYMHANDLING(H_IBM))
@@ -180,16 +261,51 @@ diff -ruN nethack-3.6.1.orig/japanese/jlib.c nethack-3.6.1/japanese/jlib.c
  /*
  **	primitive function
  */
-@@ -365,7 +458,7 @@
+@@ -367,9 +515,24 @@
+ 	c2 = c;
+ 
  	if(IC == output_kcode)
- #ifdef POSIX_ICONV
+-#ifdef POSIX_ICONV
++#if defined(ICU) || defined(POSIX_ICONV)
              f2(c1, c2);
 -        else if (output_dsc) {
++#  if defined(ICU)
++        else if (internal_dsc && output_dsc) {
++	    UErrorCode status;
++	    char buf_in[2], buf_out[16];
++	    char *src = buf_in, *dst=buf_out;
++	    size_t src_len = 2, dst_len = sizeof(buf_out);
++	    *buf_in = c1;
++            *(buf_in + 1) = c2;
++	    ucnv_convertEx(output_dsc, internal_dsc,
++			   &dst, dst+dst_len,
++			   &src, src+src_len,
++			   NULL, NULL, NULL, NULL, TRUE, TRUE,
++			   &status);
++            if (status != U_SUCCESS) {
++#  elif defined(POSIX_ICONV)
 +        else if (output_dsc != (iconv_t)-1) {
              char buf_in[2], buf_out[16];
              char *src = buf_in, *dst=buf_out;
              size_t src_len = 2, dst_len = sizeof(buf_out);
-@@ -474,6 +567,21 @@
+@@ -377,6 +540,7 @@
+             *(buf_in + 1) = c2;
+             if (iconv(output_dsc, &src,
+                       &src_len, &dst, &dst_len) == (size_t)-1) {
++#  endif
+                 f2(c1, c2);
+             } else {
+                 *dst = '\0';
+@@ -441,7 +605,7 @@
+     if(!f1) f1 = tty_cputc;
+     if(!f2) f2 = tty_cputc2;
+ 
+-#ifdef POSIX_ICONV
++#if defined(ICU) || defined(POSIX_ICONV)
+     if (output_kcode == UTF8) {
+         if (c) {
+             f1(c);
+@@ -478,6 +642,21 @@
      cbuffer((unsigned int)(c & 0xff), NULL, NULL, NULL);
  }
  
@@ -212,8 +328,8 @@ diff -ruN nethack-3.6.1.orig/japanese/jlib.c nethack-3.6.1/japanese/jlib.c
  jputs(s)
       const char *s;
 diff -ruN nethack-3.6.1.orig/sys/unix/unixmain.c nethack-3.6.1/sys/unix/unixmain.c
---- nethack-3.6.1.orig/sys/unix/unixmain.c	2018-06-24 11:53:07.000000000 +0900
-+++ nethack-3.6.1/sys/unix/unixmain.c	2018-06-24 12:39:49.738017797 +0900
+--- nethack-3.6.1.orig/sys/unix/unixmain.c	2018-10-13 07:37:46.000000000 +0900
++++ nethack-3.6.1/sys/unix/unixmain.c	2018-10-13 07:39:19.513481843 +0900
 @@ -18,6 +18,8 @@
  
  #ifdef XI18N
@@ -258,8 +374,8 @@ diff -ruN nethack-3.6.1.orig/sys/unix/unixmain.c nethack-3.6.1/sys/unix/unixmain
              prscore(argc, argv);
              jputchar('\0'); /* reset */
 diff -ruN nethack-3.6.1.orig/win/X11/winX.c nethack-3.6.1/win/X11/winX.c
---- nethack-3.6.1.orig/win/X11/winX.c	2018-06-24 11:53:07.000000000 +0900
-+++ nethack-3.6.1/win/X11/winX.c	2018-06-24 12:39:49.750339093 +0900
+--- nethack-3.6.1.orig/win/X11/winX.c	2018-10-13 07:37:46.000000000 +0900
++++ nethack-3.6.1/win/X11/winX.c	2018-10-13 07:39:19.520707279 +0900
 @@ -170,6 +170,9 @@
  static int FDECL(input_event, (int));
  static void FDECL(win_visible, (Widget, XtPointer, XEvent *, Boolean *));
@@ -299,8 +415,8 @@ diff -ruN nethack-3.6.1.orig/win/X11/winX.c nethack-3.6.1/win/X11/winX.c
 +
  /*winX.c*/
 diff -ruN nethack-3.6.1.orig/win/tty/wintty.c nethack-3.6.1/win/tty/wintty.c
---- nethack-3.6.1.orig/win/tty/wintty.c	2018-06-24 11:53:07.000000000 +0900
-+++ nethack-3.6.1/win/tty/wintty.c	2018-06-24 12:39:49.757903623 +0900
+--- nethack-3.6.1.orig/win/tty/wintty.c	2018-10-13 07:37:46.000000000 +0900
++++ nethack-3.6.1/win/tty/wintty.c	2018-10-13 07:39:19.522314770 +0900
 @@ -3372,7 +3372,7 @@
  #   if 0 /*JP*/
          (void) putchar(ch);
