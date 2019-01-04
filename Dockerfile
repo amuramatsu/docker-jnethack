@@ -3,7 +3,7 @@ FROM alpine:latest
 MAINTAINER MURAMATSU Atsushi <amura@tomato.sakura.ne.jp>
 
 WORKDIR /nethack
-COPY jnethack-3.6.1-0.2.patch linux-tty-x11 jnethack.conf ./
+COPY jnethack-3.6.1-0.3.patch linux-tty-x11 jnethack.conf ./
 RUN apk --update add --no-cache \
 		ncurses-libs \
 		libx11 \
@@ -29,10 +29,10 @@ RUN apk --update add --no-cache --virtual .build-dep \
 	&& cd nkf-2.1.4 && make && cd .. \
 	&& nkf-2.1.4/nkf -W -e -Lu --overwrite jnethack.conf \
 	&& cd nethack-3.6.1 \
-	&& curl -sL https://ja.osdn.net/projects/jnethack/downloads/70140/jnethack-3.6.1-0.2.diff.gz | zcat | patch -p2 \
+	&& curl -sL https://ja.osdn.net/projects/jnethack/downloads/70452/jnethack-3.6.1-0.3.diff.gz | zcat | patch -p2 \
 	&& find . -type f -exec ../nkf-2.1.4/nkf -e -Lu --overwrite {} \; \
 	&& rm -rf ../nkf-2.1.4 \
-	&& patch -p1 < ../jnethack-3.6.1-0.2.patch \
+	&& patch -p1 < ../jnethack-3.6.1-0.3.patch \
 	&& sh sys/unix/setup.sh ../linux-tty-x11 \
 	&& make \
 	&& make install \
