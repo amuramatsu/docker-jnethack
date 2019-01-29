@@ -103,7 +103,7 @@ diff -ruN nethack-3.6.1.orig/japanese/jlib.c nethack-3.6.1/japanese/jlib.c
 -    if (input_dsc) {
 +#if defined(ICU)
 +    if (internal_dsc && input_dsc) {
-+	UErrorCode status;
++	UErrorCode status = 0;
 +        size_t src_len, dst_len;
 +        up = s;
 +        src_len = strlen(s);
@@ -113,7 +113,7 @@ diff -ruN nethack-3.6.1.orig/japanese/jlib.c nethack-3.6.1/japanese/jlib.c
 +		       (char**)&up, up+src_len,
 +		       NULL, NULL, NULL, NULL, TRUE, TRUE,
 +		       &status);
-+	if (status != U_SUCCESS)
++	if (U_FAILURE(status))
 +            goto noconvert;
 +    }
 +#elif defined(POSIX_ICONV)
@@ -129,7 +129,7 @@ diff -ruN nethack-3.6.1.orig/japanese/jlib.c nethack-3.6.1/japanese/jlib.c
 -    if(output_dsc){
 +#if defined(ICU)
 +    if(internal_dsc && output_dsc){
-+	UErrorCode status;
++	UErrorCode status = 0;
 +	size_t src_len, dst_len;
 +        up = s;
 +        src_len = strlen(s);
@@ -139,7 +139,7 @@ diff -ruN nethack-3.6.1.orig/japanese/jlib.c nethack-3.6.1/japanese/jlib.c
 +		       (char**)&up, up+src_len,
 +		       NULL, NULL, NULL, NULL, TRUE, TRUE,
 +		       &status);
-+	if (status != U_SUCCESS)
++	if (U_FAILURE(status))
 +            goto noconvert;
 +    }
 +#elif defined(POSIX_ICONV)
@@ -257,7 +257,7 @@ diff -ruN nethack-3.6.1.orig/japanese/jlib.c nethack-3.6.1/japanese/jlib.c
 -        else if (output_dsc) {
 +#  if defined(ICU)
 +        else if (internal_dsc && output_dsc) {
-+	    UErrorCode status;
++	    UErrorCode status = 0;
 +	    char buf_in[2], buf_out[16];
 +	    char *src = buf_in, *dst=buf_out;
 +	    size_t src_len = 2, dst_len = sizeof(buf_out);
@@ -268,7 +268,7 @@ diff -ruN nethack-3.6.1.orig/japanese/jlib.c nethack-3.6.1/japanese/jlib.c
 +			   &src, src+src_len,
 +			   NULL, NULL, NULL, NULL, TRUE, TRUE,
 +			   &status);
-+            if (status != U_SUCCESS) {
++            if (U_FAILURE(status)) {
 +#  elif defined(POSIX_ICONV)
 +        else if (output_dsc != (iconv_t)-1) {
              char buf_in[2], buf_out[16];
